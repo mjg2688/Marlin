@@ -16,7 +16,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
 
@@ -57,9 +57,16 @@ GcodeSuite gcode;
   #include "../feature/spindle_laser.h"
 #endif
 
+#if ENABLED(PASSWORD_FEATURE)
+  #include "../feature/password/password.h"
+#endif
+
 #include "../MarlinCore.h" // for idle()
 
-millis_t GcodeSuite::previous_move_ms;
+// Inactivity shutdown
+millis_t GcodeSuite::previous_move_ms = 0,
+         GcodeSuite::max_inactive_time = 0,
+         GcodeSuite::stepper_inactive_time = SEC_TO_MS(DEFAULT_STEPPER_DEACTIVE_TIME);
 
 // Relative motion mode for each logical axis
 static constexpr xyze_bool_t ar_init = AXIS_RELATIVE_MODES;
@@ -238,6 +245,17 @@ void GcodeSuite::dwell(millis_t time) {
 void GcodeSuite::process_parsed_command(const bool no_ok/*=false*/) {
   KEEPALIVE_STATE(IN_HANDLER);
 
+ /**
+  * Block all Gcodes except M511 Unlock Printer, if printer is locked
+  * Will still block Gcodes if M511 is disabled, in which case the printer should be unlocked via LCD Menu
+  */
+  #if ENABLED(PASSWORD_FEATURE)
+    if (password.is_locked && !(parser.command_letter == 'M' && parser.codenum == 511)) {
+      SERIAL_ECHO_MSG(STR_PRINTER_LOCKED);
+      return;
+    }
+  #endif
+
   // Handle a known G, M, or T
   switch (parser.command_letter) {
     case 'G': switch (parser.codenum) {
@@ -327,13 +345,8 @@ void GcodeSuite::process_parsed_command(const bool no_ok/*=false*/) {
 
       #if ENABLED(G38_PROBE_TARGET)
         case 38:                                                  // G38.2, G38.3: Probe towards target
-          if (WITHIN(parser.subcode, 2,
-            #if ENABLED(G38_PROBE_AWAY)
-              5
-            #else
-              3
-            #endif
-          )) G38(parser.subcode);                                 // G38.4, G38.5: Probe away from target
+          if (WITHIN(parser.subcode, 2, TERN(G38_PROBE_AWAY, 5, 3)))
+            G38(parser.subcode);                                  // G38.4, G38.5: Probe away from target
           break;
       #endif
 
@@ -485,14 +498,10 @@ void GcodeSuite::process_parsed_command(const bool no_ok/*=false*/) {
         case 108: M108(); break;                                  // M108: Cancel Waiting
         case 112: M112(); break;                                  // M112: Full Shutdown
         case 410: M410(); break;                                  // M410: Quickstop - Abort all the planned moves.
-        #if ENABLED(HOST_PROMPT_SUPPORT)
-          case 876: M876(); break;                                // M876: Handle Host prompt responses
-        #endif
+        TERN_(HOST_PROMPT_SUPPORT, case 876:)                     // M876: Handle Host prompt responses
       #else
         case 108: case 112: case 410:
-        #if ENABLED(HOST_PROMPT_SUPPORT)
-          case 876:
-        #endif
+        TERN_(HOST_PROMPT_SUPPORT, case 876:)
         break;
       #endif
 
@@ -550,7 +559,7 @@ void GcodeSuite::process_parsed_command(const bool no_ok/*=false*/) {
       case 120: M120(); break;                                    // M120: Enable endstops
       case 121: M121(); break;                                    // M121: Disable endstops
 
-      #if HAS_HOTEND && HAS_LCD_MENU
+      #if PREHEAT_COUNT
         case 145: M145(); break;                                  // M145: Set material heatup parameters
       #endif
 
@@ -742,6 +751,16 @@ void GcodeSuite::process_parsed_command(const bool no_ok/*=false*/) {
         case 504: M504(); break;                                  // M504: Validate EEPROM contents
       #endif
 
+      #if ENABLED(PASSWORD_FEATURE)
+        case 510: M510(); break;                                  // M510: Lock Printer
+        #if ENABLED(PASSWORD_UNLOCK_GCODE)
+          case 511: M511(); break;                                // M511: Unlock Printer
+        #endif
+        #if ENABLED(PASSWORD_CHANGE_GCODE)
+          case 512: M512(); break;
+        #endif                                                    // M512: Set/Change/Remove Password
+      #endif
+
       #if ENABLED(SDSUPPORT)
         case 524: M524(); break;                                  // M524: Abort the current SD print job
       #endif
@@ -848,7 +867,7 @@ void GcodeSuite::process_parsed_command(const bool no_ok/*=false*/) {
         case 351: M351(); break;                                  // M351: Toggle MS1 MS2 pins directly, S# determines MS1 or MS2, X# sets the pin high/low.
       #endif
 
-      #if HAS_CASE_LIGHT
+      #if ENABLED(CASE_LIGHT_ENABLE)
         case 355: M355(); break;                                  // M355: Set case light brightness
       #endif
 
@@ -875,6 +894,15 @@ void GcodeSuite::process_parsed_command(const bool no_ok/*=false*/) {
 
       #if ENABLED(Z_STEPPER_AUTO_ALIGN)
         case 422: M422(); break;                                  // M422: Set Z Stepper automatic alignment position using probe
+      #endif
+
+      #if ALL(HAS_SPI_FLASH, SDSUPPORT, MARLIN_DEV_MODE)
+        case 993: M993(); break;                                  // M993: Backup SPI Flash to SD
+        case 994: M994(); break;                                  // M994: Load a Backup from SD to SPI Flash
+      #endif
+
+      #if ENABLED(TOUCH_SCREEN_CALIBRATION)
+        case 995: M995(); break;                                  // M995: Touch screen calibration for TFT display
       #endif
 
       #if ENABLED(PLATFORM_M997_SUPPORT)
