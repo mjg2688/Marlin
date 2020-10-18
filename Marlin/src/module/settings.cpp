@@ -21,7 +21,7 @@
  */
 
 /**
- * configuration_store.cpp
+ * settings.cpp
  *
  * Settings and EEPROM storage
  *
@@ -33,11 +33,10 @@
  * ALSO: Variables in the Store and Retrieve sections must be in the same order.
  *       If a feature is disabled, some data must still be written that, when read,
  *       either sets a Sane Default, or results in No Change to the existing value.
- *
  */
 
 // Change EEPROM version if the structure changes
-#define EEPROM_VERSION "V81"
+#define EEPROM_VERSION "V82"
 #define EEPROM_OFFSET 100
 
 // Check the integrity of data offsets.
@@ -52,7 +51,7 @@
 #include "temperature.h"
 
 #if ENABLED(DWIN_CREALITY_LCD)
-  #include "../lcd/dwin/dwin.h"
+  #include "../lcd/dwin/e3v2/dwin.h"
 #endif
 
 #include "../lcd/ultralcd.h"
@@ -106,13 +105,16 @@
 
 #if HAS_FILAMENT_SENSOR
   #include "../feature/runout.h"
+  #ifndef FIL_RUNOUT_ENABLED_DEFAULT
+    #define FIL_RUNOUT_ENABLED_DEFAULT true
+  #endif
 #endif
 
 #if ENABLED(EXTRA_LIN_ADVANCE_K)
   extern float other_extruder_advance_K[EXTRUDERS];
 #endif
 
-#if EXTRUDERS > 1
+#if HAS_MULTI_EXTRUDER
   #include "tool_change.h"
   void M217_report(const bool eeprom);
 #endif
@@ -135,7 +137,7 @@
   void M710_report(const bool forReplay);
 #endif
 
-#if ENABLED(CASE_LIGHT_MENU) && DISABLED(CASE_LIGHT_NO_BRIGHTNESS)
+#if ENABLED(CASE_LIGHT_ENABLE) && DISABLED(CASE_LIGHT_NO_BRIGHTNESS)
   #include "../feature/caselight.h"
   #define HAS_CASE_LIGHT_BRIGHTNESS 1
 #endif
@@ -363,7 +365,10 @@ typedef struct SettingsDataStruct {
   //
   // HAS_MOTOR_CURRENT_PWM
   //
-  uint32_t motor_current_setting[3];                    // M907 X Z E
+  #ifndef MOTOR_CURRENT_COUNT
+    #define MOTOR_CURRENT_COUNT 3
+  #endif
+  uint32_t motor_current_setting[MOTOR_CURRENT_COUNT];  // M907 X Z E
 
   //
   // CNC_COORDINATE_SYSTEMS
@@ -385,7 +390,7 @@ typedef struct SettingsDataStruct {
   //
   // Tool-change settings
   //
-  #if EXTRUDERS > 1
+  #if HAS_MULTI_EXTRUDER
     toolchange_settings_t toolchange_settings;          // M217 S P R
   #endif
 
@@ -646,15 +651,16 @@ void MarlinSettings::postprocess() {
       #if HAS_FILAMENT_SENSOR
         const bool &runout_sensor_enabled = runout.enabled;
       #else
-        constexpr bool runout_sensor_enabled = true;
+        constexpr int8_t runout_sensor_enabled = -1;
       #endif
+      _FIELD_TEST(runout_sensor_enabled);
+      EEPROM_WRITE(runout_sensor_enabled);
+
       #if HAS_FILAMENT_RUNOUT_DISTANCE
         const float &runout_distance_mm = runout.runout_distance();
       #else
         constexpr float runout_distance_mm = 0;
       #endif
-      _FIELD_TEST(runout_sensor_enabled);
-      EEPROM_WRITE(runout_sensor_enabled);
       EEPROM_WRITE(runout_distance_mm);
     }
 
@@ -1187,60 +1193,60 @@ void MarlinSettings::postprocess() {
 
       #if HAS_STEALTHCHOP
         #if AXIS_HAS_STEALTHCHOP(X)
-          tmc_stealth_enabled.X = stepperX.get_stealthChop_status();
+          tmc_stealth_enabled.X = stepperX.get_stored_stealthChop_status();
         #endif
         #if AXIS_HAS_STEALTHCHOP(Y)
-          tmc_stealth_enabled.Y = stepperY.get_stealthChop_status();
+          tmc_stealth_enabled.Y = stepperY.get_stored_stealthChop_status();
         #endif
         #if AXIS_HAS_STEALTHCHOP(Z)
-          tmc_stealth_enabled.Z = stepperZ.get_stealthChop_status();
+          tmc_stealth_enabled.Z = stepperZ.get_stored_stealthChop_status();
         #endif
         #if AXIS_HAS_STEALTHCHOP(X2)
-          tmc_stealth_enabled.X2 = stepperX2.get_stealthChop_status();
+          tmc_stealth_enabled.X2 = stepperX2.get_stored_stealthChop_status();
         #endif
         #if AXIS_HAS_STEALTHCHOP(Y2)
-          tmc_stealth_enabled.Y2 = stepperY2.get_stealthChop_status();
+          tmc_stealth_enabled.Y2 = stepperY2.get_stored_stealthChop_status();
         #endif
         #if AXIS_HAS_STEALTHCHOP(Z2)
-          tmc_stealth_enabled.Z2 = stepperZ2.get_stealthChop_status();
+          tmc_stealth_enabled.Z2 = stepperZ2.get_stored_stealthChop_status();
         #endif
         #if AXIS_HAS_STEALTHCHOP(Z3)
-          tmc_stealth_enabled.Z3 = stepperZ3.get_stealthChop_status();
+          tmc_stealth_enabled.Z3 = stepperZ3.get_stored_stealthChop_status();
         #endif
         #if AXIS_HAS_STEALTHCHOP(Z4)
-          tmc_stealth_enabled.Z4 = stepperZ4.get_stealthChop_status();
+          tmc_stealth_enabled.Z4 = stepperZ4.get_stored_stealthChop_status();
         #endif
         #if MAX_EXTRUDERS
           #if AXIS_HAS_STEALTHCHOP(E0)
-            tmc_stealth_enabled.E0 = stepperE0.get_stealthChop_status();
+            tmc_stealth_enabled.E0 = stepperE0.get_stored_stealthChop_status();
           #endif
           #if MAX_EXTRUDERS > 1
             #if AXIS_HAS_STEALTHCHOP(E1)
-              tmc_stealth_enabled.E1 = stepperE1.get_stealthChop_status();
+              tmc_stealth_enabled.E1 = stepperE1.get_stored_stealthChop_status();
             #endif
             #if MAX_EXTRUDERS > 2
               #if AXIS_HAS_STEALTHCHOP(E2)
-                tmc_stealth_enabled.E2 = stepperE2.get_stealthChop_status();
+                tmc_stealth_enabled.E2 = stepperE2.get_stored_stealthChop_status();
               #endif
               #if MAX_EXTRUDERS > 3
                 #if AXIS_HAS_STEALTHCHOP(E3)
-                  tmc_stealth_enabled.E3 = stepperE3.get_stealthChop_status();
+                  tmc_stealth_enabled.E3 = stepperE3.get_stored_stealthChop_status();
                 #endif
                 #if MAX_EXTRUDERS > 4
                   #if AXIS_HAS_STEALTHCHOP(E4)
-                    tmc_stealth_enabled.E4 = stepperE4.get_stealthChop_status();
+                    tmc_stealth_enabled.E4 = stepperE4.get_stored_stealthChop_status();
                   #endif
                   #if MAX_EXTRUDERS > 5
                     #if AXIS_HAS_STEALTHCHOP(E5)
-                      tmc_stealth_enabled.E5 = stepperE5.get_stealthChop_status();
+                      tmc_stealth_enabled.E5 = stepperE5.get_stored_stealthChop_status();
                     #endif
                     #if MAX_EXTRUDERS > 6
                       #if AXIS_HAS_STEALTHCHOP(E6)
-                        tmc_stealth_enabled.E6 = stepperE6.get_stealthChop_status();
+                        tmc_stealth_enabled.E6 = stepperE6.get_stored_stealthChop_status();
                       #endif
                       #if MAX_EXTRUDERS > 7
                         #if AXIS_HAS_STEALTHCHOP(E7)
-                          tmc_stealth_enabled.E7 = stepperE7.get_stealthChop_status();
+                          tmc_stealth_enabled.E7 = stepperE7.get_stored_stealthChop_status();
                         #endif
                       #endif // MAX_EXTRUDERS > 7
                     #endif // MAX_EXTRUDERS > 6
@@ -1274,10 +1280,10 @@ void MarlinSettings::postprocess() {
     {
       _FIELD_TEST(motor_current_setting);
 
-      #if HAS_MOTOR_CURRENT_PWM
+      #if HAS_MOTOR_CURRENT_SPI || HAS_MOTOR_CURRENT_PWM
         EEPROM_WRITE(stepper.motor_current_setting);
       #else
-        const uint32_t no_current[3] = { 0 };
+        const uint32_t no_current[MOTOR_CURRENT_COUNT] = { 0 };
         EEPROM_WRITE(no_current);
       #endif
     }
@@ -1316,7 +1322,7 @@ void MarlinSettings::postprocess() {
     // Multiple Extruders
     //
 
-    #if EXTRUDERS > 1
+    #if HAS_MULTI_EXTRUDER
       _FIELD_TEST(toolchange_settings);
       EEPROM_WRITE(toolchange_settings);
     #endif
@@ -1518,13 +1524,12 @@ void MarlinSettings::postprocess() {
       // Filament Runout Sensor
       //
       {
-        #if HAS_FILAMENT_SENSOR
-          const bool &runout_sensor_enabled = runout.enabled;
-        #else
-          bool runout_sensor_enabled;
-        #endif
+        int8_t runout_sensor_enabled;
         _FIELD_TEST(runout_sensor_enabled);
         EEPROM_READ(runout_sensor_enabled);
+        #if HAS_FILAMENT_SENSOR
+          runout.enabled = runout_sensor_enabled < 0 ? FIL_RUNOUT_ENABLED_DEFAULT : runout_sensor_enabled;
+        #endif
 
         TERN_(HAS_FILAMENT_SENSOR, if (runout.enabled) runout.reset());
 
@@ -1801,10 +1806,11 @@ void MarlinSettings::postprocess() {
       //
       {
         _FIELD_TEST(lcd_contrast);
-
         int16_t lcd_contrast;
         EEPROM_READ(lcd_contrast);
-        TERN_(HAS_LCD_CONTRAST, ui.set_contrast(lcd_contrast));
+        if (!validating) {
+          TERN_(HAS_LCD_CONTRAST, ui.set_contrast(lcd_contrast));
+        }
       }
 
       //
@@ -2107,10 +2113,16 @@ void MarlinSettings::postprocess() {
       // Motor Current PWM
       //
       {
-        uint32_t motor_current_setting[3];
         _FIELD_TEST(motor_current_setting);
+        uint32_t motor_current_setting[MOTOR_CURRENT_COUNT]
+          #if HAS_MOTOR_CURRENT_SPI
+             = DIGIPOT_MOTOR_CURRENT
+          #endif
+        ;
+        DEBUG_ECHOLNPGM("DIGIPOTS Loading");
         EEPROM_READ(motor_current_setting);
-        #if HAS_MOTOR_CURRENT_PWM
+        DEBUG_ECHOLNPGM("DIGIPOTS Loaded");
+        #if HAS_MOTOR_CURRENT_SPI || HAS_MOTOR_CURRENT_PWM
           if (!validating)
             COPY(stepper.motor_current_setting, motor_current_setting);
         #endif
@@ -2164,7 +2176,7 @@ void MarlinSettings::postprocess() {
       //
       // Tool-change settings
       //
-      #if EXTRUDERS > 1
+      #if HAS_MULTI_EXTRUDER
         _FIELD_TEST(toolchange_settings);
         EEPROM_READ(toolchange_settings);
       #endif
@@ -2476,7 +2488,7 @@ void MarlinSettings::reset() {
   //
 
   #if HAS_FILAMENT_SENSOR
-    runout.enabled = true;
+    runout.enabled = FIL_RUNOUT_ENABLED_DEFAULT;
     runout.reset();
     TERN_(HAS_FILAMENT_RUNOUT_DISTANCE, runout.set_runout_distance(FILAMENT_RUNOUT_DISTANCE_MM));
   #endif
@@ -2485,7 +2497,7 @@ void MarlinSettings::reset() {
   // Tool-change Settings
   //
 
-  #if EXTRUDERS > 1
+  #if HAS_MULTI_EXTRUDER
     #if ENABLED(TOOLCHANGE_FILAMENT_SWAP)
       toolchange_settings.swap_length     = TOOLCHANGE_FS_LENGTH;
       toolchange_settings.extra_resume    = TOOLCHANGE_FS_EXTRA_RESUME_LENGTH;
@@ -2788,9 +2800,20 @@ void MarlinSettings::reset() {
   //
 
   #if HAS_MOTOR_CURRENT_PWM
-    constexpr uint32_t tmp_motor_current_setting[3] = PWM_MOTOR_CURRENT;
-    LOOP_L_N(q, 3)
-      stepper.digipot_current(q, (stepper.motor_current_setting[q] = tmp_motor_current_setting[q]));
+    constexpr uint32_t tmp_motor_current_setting[MOTOR_CURRENT_COUNT] = PWM_MOTOR_CURRENT;
+    LOOP_L_N(q, MOTOR_CURRENT_COUNT)
+      stepper.set_digipot_current(q, (stepper.motor_current_setting[q] = tmp_motor_current_setting[q]));
+  #endif
+
+  //
+  // DIGIPOTS
+  //
+  #if HAS_MOTOR_CURRENT_SPI
+    static constexpr uint32_t tmp_motor_current_setting[] = DIGIPOT_MOTOR_CURRENT;
+    DEBUG_ECHOLNPGM("Writing Digipot");
+    LOOP_L_N(q, COUNT(tmp_motor_current_setting))
+      stepper.set_digipot_current(q, tmp_motor_current_setting[q]);
+    DEBUG_ECHOLNPGM("Digipot Written");
   #endif
 
   //
@@ -3592,17 +3615,17 @@ void MarlinSettings::reset() {
       #if HAS_STEALTHCHOP
         CONFIG_ECHO_HEADING("Driver stepping mode:");
         #if AXIS_HAS_STEALTHCHOP(X)
-          const bool chop_x = stepperX.get_stealthChop_status();
+          const bool chop_x = stepperX.get_stored_stealthChop_status();
         #else
           constexpr bool chop_x = false;
         #endif
         #if AXIS_HAS_STEALTHCHOP(Y)
-          const bool chop_y = stepperY.get_stealthChop_status();
+          const bool chop_y = stepperY.get_stored_stealthChop_status();
         #else
           constexpr bool chop_y = false;
         #endif
         #if AXIS_HAS_STEALTHCHOP(Z)
-          const bool chop_z = stepperZ.get_stealthChop_status();
+          const bool chop_z = stepperZ.get_stored_stealthChop_status();
         #else
           constexpr bool chop_z = false;
         #endif
@@ -3616,17 +3639,17 @@ void MarlinSettings::reset() {
         }
 
         #if AXIS_HAS_STEALTHCHOP(X2)
-          const bool chop_x2 = stepperX2.get_stealthChop_status();
+          const bool chop_x2 = stepperX2.get_stored_stealthChop_status();
         #else
           constexpr bool chop_x2 = false;
         #endif
         #if AXIS_HAS_STEALTHCHOP(Y2)
-          const bool chop_y2 = stepperY2.get_stealthChop_status();
+          const bool chop_y2 = stepperY2.get_stored_stealthChop_status();
         #else
           constexpr bool chop_y2 = false;
         #endif
         #if AXIS_HAS_STEALTHCHOP(Z2)
-          const bool chop_z2 = stepperZ2.get_stealthChop_status();
+          const bool chop_z2 = stepperZ2.get_stored_stealthChop_status();
         #else
           constexpr bool chop_z2 = false;
         #endif
@@ -3640,36 +3663,36 @@ void MarlinSettings::reset() {
         }
 
         #if AXIS_HAS_STEALTHCHOP(Z3)
-          if (stepperZ3.get_stealthChop_status()) { say_M569(forReplay, PSTR("I2 Z"), true); }
+          if (stepperZ3.get_stored_stealthChop_status()) { say_M569(forReplay, PSTR("I2 Z"), true); }
         #endif
 
         #if AXIS_HAS_STEALTHCHOP(Z4)
-          if (stepperZ4.get_stealthChop_status()) { say_M569(forReplay, PSTR("I3 Z"), true); }
+          if (stepperZ4.get_stored_stealthChop_status()) { say_M569(forReplay, PSTR("I3 Z"), true); }
         #endif
 
         #if AXIS_HAS_STEALTHCHOP(E0)
-          if (stepperE0.get_stealthChop_status()) { say_M569(forReplay, PSTR("T0 E"), true); }
+          if (stepperE0.get_stored_stealthChop_status()) { say_M569(forReplay, PSTR("T0 E"), true); }
         #endif
         #if AXIS_HAS_STEALTHCHOP(E1)
-          if (stepperE1.get_stealthChop_status()) { say_M569(forReplay, PSTR("T1 E"), true); }
+          if (stepperE1.get_stored_stealthChop_status()) { say_M569(forReplay, PSTR("T1 E"), true); }
         #endif
         #if AXIS_HAS_STEALTHCHOP(E2)
-          if (stepperE2.get_stealthChop_status()) { say_M569(forReplay, PSTR("T2 E"), true); }
+          if (stepperE2.get_stored_stealthChop_status()) { say_M569(forReplay, PSTR("T2 E"), true); }
         #endif
         #if AXIS_HAS_STEALTHCHOP(E3)
-          if (stepperE3.get_stealthChop_status()) { say_M569(forReplay, PSTR("T3 E"), true); }
+          if (stepperE3.get_stored_stealthChop_status()) { say_M569(forReplay, PSTR("T3 E"), true); }
         #endif
         #if AXIS_HAS_STEALTHCHOP(E4)
-          if (stepperE4.get_stealthChop_status()) { say_M569(forReplay, PSTR("T4 E"), true); }
+          if (stepperE4.get_stored_stealthChop_status()) { say_M569(forReplay, PSTR("T4 E"), true); }
         #endif
         #if AXIS_HAS_STEALTHCHOP(E5)
-          if (stepperE5.get_stealthChop_status()) { say_M569(forReplay, PSTR("T5 E"), true); }
+          if (stepperE5.get_stored_stealthChop_status()) { say_M569(forReplay, PSTR("T5 E"), true); }
         #endif
         #if AXIS_HAS_STEALTHCHOP(E6)
-          if (stepperE6.get_stealthChop_status()) { say_M569(forReplay, PSTR("T6 E"), true); }
+          if (stepperE6.get_stored_stealthChop_status()) { say_M569(forReplay, PSTR("T6 E"), true); }
         #endif
         #if AXIS_HAS_STEALTHCHOP(E7)
-          if (stepperE7.get_stealthChop_status()) { say_M569(forReplay, PSTR("T7 E"), true); }
+          if (stepperE7.get_stored_stealthChop_status()) { say_M569(forReplay, PSTR("T7 E"), true); }
         #endif
 
       #endif // HAS_STEALTHCHOP
@@ -3692,14 +3715,23 @@ void MarlinSettings::reset() {
       #endif
     #endif
 
-    #if HAS_MOTOR_CURRENT_PWM
+    #if HAS_MOTOR_CURRENT_SPI || HAS_MOTOR_CURRENT_PWM
       CONFIG_ECHO_HEADING("Stepper motor currents:");
       CONFIG_ECHO_START();
-      SERIAL_ECHOLNPAIR_P(
-          PSTR("  M907 X"), stepper.motor_current_setting[0]
-        , SP_Z_STR, stepper.motor_current_setting[1]
-        , SP_E_STR, stepper.motor_current_setting[2]
-      );
+      #if HAS_MOTOR_CURRENT_PWM
+        SERIAL_ECHOLNPAIR_P(
+            PSTR("  M907 X"), stepper.motor_current_setting[0]
+          , SP_Z_STR, stepper.motor_current_setting[1]
+          , SP_E_STR, stepper.motor_current_setting[2]
+        );
+      #elif HAS_MOTOR_CURRENT_SPI
+        SERIAL_ECHOPGM("  M907");
+        LOOP_L_N(q, MOTOR_CURRENT_COUNT) {
+          SERIAL_CHAR(' ');
+          SERIAL_CHAR(axis_codes[q]);
+          SERIAL_ECHO(stepper.motor_current_setting[q]);
+        }
+      #endif
     #endif
 
     /**
@@ -3716,7 +3748,7 @@ void MarlinSettings::reset() {
       #endif
     #endif
 
-    #if EXTRUDERS > 1
+    #if HAS_MULTI_EXTRUDER
       CONFIG_ECHO_HEADING("Tool-changing:");
       CONFIG_ECHO_START();
       M217_report(true);
