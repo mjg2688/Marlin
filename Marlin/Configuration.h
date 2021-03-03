@@ -494,9 +494,9 @@
     #define DEFAULT_Ki_LIST {   1.08,   1.08 }
     #define DEFAULT_Kd_LIST { 114.00, 114.00 }
   #else
-    #define DEFAULT_Kp  29.27
-    #define DEFAULT_Ki   5.70
-    #define DEFAULT_Kd  37.55
+    #define DEFAULT_Kp  28.1299
+    #define DEFAULT_Ki   3.1895
+    #define DEFAULT_Kd  62.0229
   #endif
 #endif // PIDTEMP
 
@@ -534,9 +534,9 @@
   //#define PID_BED_DEBUG // Sends debug data to the serial port.
 
   // Creality Ender-3 Pro
-  #define DEFAULT_bedKp 116.04
-  #define DEFAULT_bedKi 22.62
-  #define DEFAULT_bedKd 396.96
+  #define DEFAULT_bedKp 97.1922
+  #define DEFAULT_bedKi 16.1637
+  #define DEFAULT_bedKd 389.6110
 
   // FIND YOUR OWN: "M303 E-1 C8 S90" to run autotune on the bed at 90 degreesC for 8 cycles.
 #endif // PIDTEMPBED
@@ -737,7 +737,7 @@
  * Override with M92
  *                                      X, Y, Z, E0 [, E1[, E2...]]
  */
-#define DEFAULT_AXIS_STEPS_PER_UNIT   { 80, 80, 400, 139 }
+#define DEFAULT_AXIS_STEPS_PER_UNIT   { 80, 80, 400, 97.2 }
 
 /**
  * Default Max Feed Rate (mm/s)
@@ -987,7 +987,7 @@
  *     |    [-]    |
  *     O-- FRONT --+
  */
-#define NOZZLE_TO_PROBE_OFFSET { -45, -13, 0 }
+#define NOZZLE_TO_PROBE_OFFSET { -46, -7, 0 }
 
 // Most probes should stay away from the edges of the bed, but
 // with NOZZLE_AS_PROBE this can be negative for a wider probing area.
@@ -1486,8 +1486,8 @@
 
 // Manually set the home position. Leave these undefined for automatic settings.
 // For DELTA this is the top-center of the Cartesian print volume.
-#define MANUAL_X_HOME_POS -2.5
-#define MANUAL_Y_HOME_POS -13.5
+//#define MANUAL_X_HOME_POS -2.5
+//#define MANUAL_Y_HOME_POS -13.5
 //#define MANUAL_Z_HOME_POS 0
 
 // Use "Z Safe Homing" to avoid homing with a Z probe outside the bed area.
